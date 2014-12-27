@@ -6,7 +6,6 @@ extern crate router;
 
 use iron::{Iron, Request, Response, IronResult, Set};
 use iron::status;
-use iron::response::modifiers::{Status, Body};
 use router::{Router, Params};
 
 fn main() {
@@ -18,6 +17,6 @@ fn main() {
 
     fn handler(req: &mut Request) -> IronResult<Response> {
         let ref query = req.extensions.get::<Router, Params>().unwrap().find("query").unwrap_or("/");
-        Ok(Response::new().set(Status(status::Ok)).set(Body(*query)))
+        Ok(Response::new().set(status::Ok).set(*query))
     }
 }
