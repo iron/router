@@ -49,7 +49,7 @@ impl Router {
         match self.routers.entry(method) {
             Vacant(entry)   => entry.set(Recognizer::new()),
             Occupied(entry) => entry.into_mut()
-        }.add(glob.as_slice(), box handler as Box<Handler + Send + Sync>);
+        }.add(glob.as_slice().trim_right_chars('/'), box handler as Box<Handler + Send + Sync>);
         self
     }
 
@@ -104,7 +104,7 @@ impl Assoc<Params> for Router {}
 
 impl Handler for Router {
     fn call(&self, req: &mut Request) -> IronResult<Response> {
-        let matched = match self.recognize(&req.method, req.url.path.connect("/").as_slice()) {
+        let matched = match self.recognize(&req.method, req.url.path.connect("/").as_slice().trim_right_chars('/')) {
             Some(matched) => matched,
             // No match.
             None => return Err(box NoRoute as IronError)
