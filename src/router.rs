@@ -17,8 +17,7 @@ pub struct Router {
 }
 
 #[derive(Debug)]
-/// The error thrown by router if there is no matching route.
-pub struct NoRoute;
+struct NoRoute;
 
 impl fmt::Display for NoRoute {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -110,22 +109,32 @@ impl Router {
 impl typemap::Key for Router { type Value = Params; }
 
 impl Handler for Router {
-    fn call(&self, req: &mut Request) -> IronResult<Response> {
+    // fn call(&self, req: &mut Request) -> IronResult<Response> {
+    //     let matched = match self.recognize(&req.method, req.url.path.connect("/").as_slice()) {
+    //         Some(matched) => matched,
+    //         // No match.
+    //         None => return Err(Box::new(NoRoute) as IronError)
+    //     };
+
+    //     req.extensions.insert::<Router>(matched.params);
+    //     matched.handler.call(req)
+    // }
+
+    // fn catch(&self, req: &mut Request, err: IronError) -> (Response, IronResult<()>) {
+    //     match self.error {
+    //         Some(ref error_handler) => error_handler.catch(req, err),
+    //         // Error that is not caught by anything!
+    //         None => (Response::with(status::InternalServerError), Err(err))
+    //     }
+    // }
+
+    fn handle(&self, req: &mut Request) -> IronResult<Response> {
         let matched = match self.recognize(&req.method, req.url.path.connect("/").as_slice()) {
             Some(matched) => matched,
-            // No match.
-            None => return Err(Box::new(NoRoute) as IronError)
+            None => return Err(IronError::new(NoRoute, status::Ok))
         };
 
         req.extensions.insert::<Router>(matched.params);
-        matched.handler.call(req)
-    }
-
-    fn catch(&self, req: &mut Request, err: IronError) -> (Response, IronResult<()>) {
-        match self.error {
-            Some(ref error_handler) => error_handler.catch(req, err),
-            // Error that is not caught by anything!
-            None => (Response::with(status::InternalServerError), Err(err))
-        }
+        matched.handler.handle(req)
     }
 }
