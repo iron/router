@@ -9,34 +9,35 @@ extern crate router;
 // PATCH   http://127.0.0.1:3000/todos/:id
 // DELETE  http://127.0.0.1:3000/todos/:id
 
-use iron::{Iron, Request, Response, IronResult};
-use iron::status;
-use router::{Router};
+use iron::Iron;
+use router::Router;
 
-struct Controller;
+mod controller {
+    use iron::{Request, Response, IronResult};
+    use iron::status;
+    use router::Router;
 
-impl Controller {
-    fn index(req: &mut Request) -> IronResult<Response> {
+    pub fn index(_: &mut Request) -> IronResult<Response> {
         Ok(Response::with((status::Ok, "Showing all items on #index action.")))
     }
 
-    fn create(req: &mut Request) -> IronResult<Response> {
+    pub fn create(_: &mut Request) -> IronResult<Response> {
         Ok(Response::with((status::Ok, "New item created on #create action.")))
     }
 
-    fn show(req: &mut Request) -> IronResult<Response> {
+    pub fn show(req: &mut Request) -> IronResult<Response> {
         let ref id = req.extensions.get::<Router>()
             .unwrap().find("id").unwrap();
         Ok(Response::with((status::Ok, format!("Showing item {}, on #show action.", id))))
     }
 
-    fn update(req: &mut Request) -> IronResult<Response> {
+    pub fn update(req: &mut Request) -> IronResult<Response> {
         let ref id = req.extensions.get::<Router>()
             .unwrap().find("id").unwrap();
         Ok(Response::with((status::Ok, format!("Updating item {}, on #update action.", id))))
     }
 
-    fn delete(req: &mut Request) -> IronResult<Response> {
+    pub fn delete(req: &mut Request) -> IronResult<Response> {
         let ref id = req.extensions.get::<Router>()
             .unwrap().find("id").unwrap();
         Ok(Response::with((status::Ok, format!("Deleting item {}, on #delete action.", id))))
@@ -46,11 +47,11 @@ impl Controller {
 fn main() {
     let mut router = Router::new();
     
-    router.get("/todos", Controller::index);
-    router.post("/todos", Controller::create);
-    router.get("/todos/:id", Controller::show);
-    router.patch("/todos/:id", Controller::update);
-    router.delete("/todos/:id", Controller::delete);
+    router.get("/todos", controller::index);
+    router.post("/todos", controller::create);
+    router.get("/todos/:id", controller::show);
+    router.patch("/todos/:id", controller::update);
+    router.delete("/todos/:id", controller::delete);
 
     Iron::new(router).listen("localhost:3000").unwrap();
 }
