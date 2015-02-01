@@ -1,5 +1,7 @@
 #![deny(missing_docs, warnings)]
-#![allow(unstable)]
+
+#![feature(core)]
+#![feature(std_misc)]
 
 //! `Router` provides a fast router handler for the Iron web framework.
 
