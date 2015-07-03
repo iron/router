@@ -113,6 +113,10 @@ impl Router {
                 }
             });
         }
+        // If GET is there, HEAD is also there.
+        if options.contains(&method::Get) && !options.contains(&method::Head) {
+            options.push(method::Head);
+        }
 
         let mut res = Response::with(status::Ok);
         res.headers.set(headers::Allow(options));
@@ -135,12 +139,17 @@ impl Router {
             }
         }
 
-        if self.recognize(&req.method, &path).is_some() {
+        self.recognize(&req.method, &path).and(
             Some(IronError::new(TrailingSlash,
                                 (status::MovedPermanently, Redirect(url))))
-        } else {
-            None
-        }
+        )
+    }
+
+    fn handle_method(&self, req: &mut Request, path: &str) -> Option<IronResult<Response>> {
+        if let Some(matched) = self.recognize(&req.method, &path) {
+            req.extensions.insert::<Router>(matched.params);
+            Some(matched.handler.handle(req))
+        } else { self.redirect_slash(req).and_then(|redirect| Some(Err(redirect))) }
     }
 }
 
@@ -150,16 +159,19 @@ impl Handler for Router {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
         let path = req.url.path.connect("/");
 
-        if let Some(matched) = self.recognize(&req.method, &path) {
-            req.extensions.insert::<Router>(matched.params);
-            matched.handler.handle(req)
-        } else if let Some(redirect) = self.redirect_slash(req) {
-            Err(redirect)
-        } else if let method::Options = req.method {
-            Ok(self.handle_options(&path))
-        } else {
-            Err(IronError::new(NoRoute, status::NotFound))
-        }
+        self.handle_method(req, &path).unwrap_or_else(||
+            match req.method {
+                method::Options => Ok(self.handle_options(&path)),
+                // For HEAD, fall back to GET. Hyper ensures no response body is written.
+                method::Head => {
+                    req.method = method::Get;
+                    self.handle_method(req, &path).unwrap_or(
+                        Err(IronError::new(NoRoute, status::NotFound))
+                    )
+                }
+                _ => Err(IronError::new(NoRoute, status::NotFound))
+            }
+        )
     }
 }
 
