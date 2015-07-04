@@ -18,7 +18,7 @@ fn main() {
     Iron::new(router).listen(Ipv4Addr(127, 0, 0, 1), 3000);
 
     fn handler(req: &mut Request) -> IronResult<Response> {
-        let ref query = req.extensions.find::<Router>().unwrap().find("query").unwrap_or("/");
+        let ref query = req.extensions.get::<Router>().unwrap().get("query").unwrap_or("/");
         Ok(Response::with(status::Ok, *query))
     }
 }
@@ -55,4 +55,3 @@ you can build a local copy with `make doc`.
 One of us is usually on `#iron` on the mozilla irc.
 Come say hi and ask any questions you might have.
 We are also usually on `#rust` and `#rust-webdev`.
-
