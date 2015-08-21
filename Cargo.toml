@@ -12,4 +12,5 @@ keywords = ["iron", "web", "http", "routing", "router"]
 [dependencies]
 iron = "0.1"
 route-recognizer = "0.1"
+plugin = "0.2"
 

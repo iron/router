@@ -13,6 +13,8 @@ use iron::modifiers::Redirect;
 use recognizer::Router as Recognizer;
 use recognizer::{Match, Params};
 
+use super::plugin;
+
 /// `Router` provides an interface for creating complex routes as middleware
 /// for the Iron framework.
 pub struct Router {
@@ -156,6 +158,17 @@ impl Router {
 }
 
 impl Key for Router { type Value = Params; }
+
+impl<'a, 'b> plugin::Plugin<Request<'a, 'b>> for Router {
+    type Error = ();
+
+    fn eval(req: &mut Request) -> Result<Params, ()> {
+        match req.extensions.get::<Router>() {
+            Some(params) => Ok(params.clone()),
+            None         => Err(()),
+        }
+    }
+}
 
 impl Handler for Router {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {

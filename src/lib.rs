@@ -5,6 +5,7 @@
 
 extern crate iron;
 extern crate route_recognizer as recognizer;
+extern crate plugin;
 
 pub use router::Router;
 pub use recognizer::Params;
