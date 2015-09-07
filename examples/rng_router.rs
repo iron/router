@@ -8,7 +8,7 @@ use iron::status::Status;
 use router::Router;
 
 use rand::Rng;
-use rand::OsRng;
+use rand::os::OsRng;
 
 /// These functions return a single unsigned integer of size 64 bits or a
 /// float between 0 and 1 of size 64 bits.
