@@ -8,7 +8,6 @@ use iron::status::Status;
 use router::Router;
 
 use rand::Rng;
-use rand::os::OsRng;
 
 /// These functions return a single unsigned integer of size 64 bits or a
 /// float between 0 and 1 of size 64 bits.
@@ -16,15 +15,15 @@ use rand::os::OsRng;
 /// They are matched by the routes /u and /f respectively.
 
 fn u_rand(_: &mut Request) -> IronResult<Response> {
-    let mut rng = OsRng::new().unwrap();
-    let rand_num: u64 = rng.next_u64();
+    let mut rng = rand::thread_rng();
+    let rand_num: u64 = rng.gen::<u64>();
 
     Ok(Response::with((Status::Ok, format!("{}", rand_num))))
 }
 
 fn f_rand(_: &mut Request) -> IronResult<Response> {
-    let mut rng = OsRng::new().unwrap();
-    let rand_num: f64 = rng.next_f64();
+    let mut rng = rand::thread_rng();
+    let rand_num: u64 = rng.gen::<u64>();
 
     Ok(Response::with((Status::Ok, format!("{}", rand_num))))
 }
@@ -36,7 +35,7 @@ fn f_rand(_: &mut Request) -> IronResult<Response> {
 /// respectively.
 
 fn u_range(req: &mut Request) -> IronResult<Response> {
-    let mut rng = OsRng::new().unwrap();
+    let mut rng = rand::thread_rng();
 
     let ref min_str = req.extensions.get::<Router>().unwrap().find("min").unwrap();
     let ref max_str = req.extensions.get::<Router>().unwrap().find("max").unwrap();
@@ -52,7 +51,7 @@ fn u_range(req: &mut Request) -> IronResult<Response> {
 }
 
 fn f_range(req: &mut Request) -> IronResult<Response> {
-    let mut rng = OsRng::new().unwrap();
+    let mut rng = rand::thread_rng();
 
     let ref min_str = req.extensions.get::<Router>().unwrap().find("min").unwrap();
     let ref max_str = req.extensions.get::<Router>().unwrap().find("max").unwrap();
