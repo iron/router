@@ -10,13 +10,18 @@ use iron::modifiers::Redirect;
 use recognizer::Router as Recognizer;
 use recognizer::{Match, Params};
 
+use url::Url;
+use url::form_urlencoded::Serializer;
+
 /// `Router` provides an interface for creating complex routes as middleware
 /// for the Iron framework.
 pub struct Router {
     // The routers, specialized by method.
     routers: HashMap<method::Method, Recognizer<Box<Handler>>>,
     // Routes that accept any method.
-    wildcard: Recognizer<Box<Handler>>
+    wildcard: Recognizer<Box<Handler>>,
+    // Used in URL generation.
+    route_ids: HashMap<String, String>
 }
 
 impl Router {
@@ -29,7 +34,8 @@ impl Router {
     pub fn new() -> Router {
         Router {
             routers: HashMap::new(),
-            wildcard: Recognizer::new()
+            wildcard: Recognizer::new(),
+            route_ids: HashMap::new()
         }
     }
 
@@ -54,46 +60,47 @@ impl Router {
     /// a controller function, so that you can confirm that the request is
     /// authorized for this route before handling it.
     pub fn route<H, S>(&mut self, method: method::Method,
-                       glob: S, handler: H) -> &mut Router
+                       id: &str, glob: S, handler: H) -> &mut Router
     where H: Handler, S: AsRef<str> {
         self.routers.entry(method).or_insert(Recognizer::new())
                     .add(glob.as_ref(), Box::new(handler));
+        self.route_ids.insert(id.to_owned(), glob.as_ref().to_owned());
         self
     }
 
     /// Like route, but specialized to the `Get` method.
-    pub fn get<H: Handler, S: AsRef<str>>(&mut self, glob: S, handler: H) -> &mut Router {
-        self.route(method::Get, glob, handler)
+    pub fn get<H: Handler, S: AsRef<str>>(&mut self, id: &str, glob: S, handler: H) -> &mut Router {
+        self.route(method::Get, id, glob, handler)
     }
 
     /// Like route, but specialized to the `Post` method.
-    pub fn post<H: Handler, S: AsRef<str>>(&mut self, glob: S, handler: H) -> &mut Router {
-        self.route(method::Post, glob, handler)
+    pub fn post<H: Handler, S: AsRef<str>>(&mut self, id: &str, glob: S, handler: H) -> &mut Router {
+        self.route(method::Post, id, glob, handler)
     }
 
     /// Like route, but specialized to the `Put` method.
-    pub fn put<H: Handler, S: AsRef<str>>(&mut self, glob: S, handler: H) -> &mut Router {
-        self.route(method::Put, glob, handler)
+    pub fn put<H: Handler, S: AsRef<str>>(&mut self, id: &str, glob: S, handler: H) -> &mut Router {
+        self.route(method::Put, id, glob, handler)
     }
 
     /// Like route, but specialized to the `Delete` method.
-    pub fn delete<H: Handler, S: AsRef<str>>(&mut self, glob: S, handler: H) -> &mut Router {
-        self.route(method::Delete, glob, handler)
+    pub fn delete<H: Handler, S: AsRef<str>>(&mut self, id: &str, glob: S, handler: H) -> &mut Router {
+        self.route(method::Delete, id, glob, handler)
     }
 
     /// Like route, but specialized to the `Head` method.
-    pub fn head<H: Handler, S: AsRef<str>>(&mut self, glob: S, handler: H) -> &mut Router {
-        self.route(method::Head, glob, handler)
+    pub fn head<H: Handler, S: AsRef<str>>(&mut self, id: &str, glob: S, handler: H) -> &mut Router {
+        self.route(method::Head, id, glob, handler)
     }
 
     /// Like route, but specialized to the `Patch` method.
-    pub fn patch<H: Handler, S: AsRef<str>>(&mut self, glob: S, handler: H) -> &mut Router {
-        self.route(method::Patch, glob, handler)
+    pub fn patch<H: Handler, S: AsRef<str>>(&mut self, id: &str, glob: S, handler: H) -> &mut Router {
+        self.route(method::Patch, id, glob, handler)
     }
 
     /// Like route, but specialized to the `Options` method.
-    pub fn options<H: Handler, S: AsRef<str>>(&mut self, glob: S, handler: H) -> &mut Router {
-        self.route(method::Options, glob, handler)
+    pub fn options<H: Handler, S: AsRef<str>>(&mut self, id: &str, glob: S, handler: H) -> &mut Router {
+        self.route(method::Options, id, glob, handler)
     }
 
     /// Route will match any method, including gibberish.
@@ -101,6 +108,58 @@ impl Router {
     pub fn any<H: Handler, S: AsRef<str>>(&mut self, glob: S, handler: H) -> &mut Router {
         self.wildcard.add(glob.as_ref(), Box::new(handler));
         self
+    }
+
+    /// Given a route identifier, generate the corresponding URL for it. The keywords arguments
+    /// will be inserted into the route parameters if there is a matching key, else
+    /// appended as query parameters.
+    pub fn url_for(&self, id: &str, params: &HashMap<String, String>) -> Result<String, String> {
+        let route = self.route_ids.get(id);
+        match route {
+            None => { Err("no route found".to_owned()) },
+            Some(r) => { self.generate_route(r, params) }
+        }
+    }
+
+    // Generate a route given a set of parameters in the `url_for` function.
+    fn generate_route(&self, route: &String, params: &HashMap<String, String>) -> Result<String, String> {
+        let base_url = String::from("http://example.com");
+        let full_url = base_url + route;
+        let parsed = Url::parse(&full_url);
+        match parsed {
+            Err(_) => { Err(String::from("url parsing error")) },
+            Ok(p) => {
+                let segments = p.path_segments().map(|c| c.collect::<Vec<_>>()).unwrap();
+                self.make_url(route, segments, params)
+            }
+        }
+    }
+
+    fn make_url(&self, orig_route: &String, path_segments: Vec<&str>, params: &HashMap<String, String>) -> Result<String, String> {
+        let mut no_matched_params = params.clone();
+        let mut new_route = orig_route.clone();
+
+        for seg in &path_segments {
+            if seg.starts_with(":") {
+                let key = seg.replace(":", "");
+                let value = params.get(&key).unwrap();
+                new_route = new_route.replace(seg, value);
+
+                // Remove the key because it was found in the path segment.
+                no_matched_params.remove(&key);
+            }
+        }
+
+        // Now add on the remaining parameters that had no path match.
+        if no_matched_params.len() > 0 {
+            let query_params = String::new();
+            let mut encoder = Serializer::new(query_params);
+            for (ref k, ref v) in no_matched_params.iter() {
+                encoder.append_pair(k, v);
+            }
+            return Ok(new_route + "?" + &encoder.finish());
+        }
+        Ok(new_route)
     }
 
     fn recognize(&self, method: &method::Method, path: &str)
