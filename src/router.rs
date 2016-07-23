@@ -136,16 +136,16 @@ impl Router {
 
     // Tests for a match by adding or removing a trailing slash.
     fn redirect_slash(&self, req : &Request) -> Option<IronError> {
-        let mut url = req.url.clone();
-        let mut path = url.path.join("/");
+        let url = req.url.clone();
+        let mut path = url.path().join("/");
 
         if let Some(last_char) = path.chars().last() {
             if last_char == '/' {
                 path.pop();
-                url.path.pop();
+                url.path().pop();
             } else {
                 path.push('/');
-                url.path.push(String::new());
+                url.path().push(&String::new());
             }
         }
 
@@ -167,7 +167,7 @@ impl Key for Router { type Value = Params; }
 
 impl Handler for Router {
     fn handle(&self, req: &mut Request) -> IronResult<Response> {
-        let path = req.url.path.join("/");
+        let path = req.url.path().join("/");
 
         self.handle_method(req, &path).unwrap_or_else(||
             match req.method {
