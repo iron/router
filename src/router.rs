@@ -12,7 +12,6 @@ use iron::Url;
 use recognizer::Router as Recognizer;
 use recognizer::{Match, Params};
 
-
 pub struct RouterInner {
     // The routers, specialized by method.
     pub routers: Recognizer<HashMap<method::Method, Arc<Handler>>>,
@@ -74,10 +73,12 @@ impl Router {
     /// authorized for this route before handling it.
     pub fn route<S: AsRef<str>, H: Handler, I: AsRef<str>>(&mut self, method: method::Method, glob: S, handler: H, route_id: I) -> &mut Router {
 
-        let mut hash: HashMap<method::Method, Arc<Handler>> = HashMap::new();
+        let mut hash: HashMap<method::Method, Arc<Handler>>;
 
         if let Some(s) = self.mut_inner().routers.recognize(glob.as_ref()).ok() {
             hash = s.handler.clone();
+        } else {
+            hash = HashMap::new();
         }
 
         hash.insert(method, Arc::new(handler));
@@ -142,7 +143,7 @@ impl Router {
     }
 
     fn recognize(&self, method: &method::Method, path: &str)
-                      -> Result<Match<&Arc<Handler>>, IronError> {
+                      -> Result<Match<&Arc<Handler>>, RouterError> {
 
         if let Some(s) = self.inner.routers.recognize(path).ok() {
             if let Some(h) = s.handler.get(method) {
@@ -150,13 +151,13 @@ impl Router {
             } else if let Some(s) = self.inner.wildcard.recognize(path).ok() {
                 return Ok(s)
             } else {
-                return Err(IronError::new(MethodNotAllowed, status::MethodNotAllowed))
+                return Err(RouterError::MethodNotAllowed)
             }
         } else if let Some(s) = self.inner.wildcard.recognize(path).ok() {
             return Ok(s)
         }
 
-        Err(IronError::new(NoRoute, status::NotFound))
+        Err(RouterError::NotFound)
     }
 
     fn handle_options(&self, path: &str) -> Response {
@@ -168,7 +169,7 @@ impl Router {
         let mut options = vec![];
 
         for method in METHODS.iter() {
-            if let Some(s) = self.inner.routers.recognize(path).ok() {
+            if let Ok(s) = self.inner.routers.recognize(path) {
                 if let Some(_) = s.handler.get(method) {
                     options.push(method.clone());
                 }
@@ -208,7 +209,7 @@ impl Router {
         }
 
         self.recognize(&req.method, &path).ok().and(
-            Some(IronError::new(TrailingSlash,
+            Some(IronError::new(RouterError::TrailingSlash,
                                 (status::MovedPermanently, Redirect(url))))
         )
     }
@@ -221,8 +222,8 @@ impl Router {
                 Some(matched.handler.handle(req))
             },
             Err(e) => {
-                if format!("{:?}", e.error) == "MethodNotAllowed" {
-                    return Some(Err(e))
+                if e == RouterError::MethodNotAllowed {
+                    return Some(Err(IronError::new(e, status::MethodNotAllowed)))
                 }
                 self.redirect_slash(req).and_then(|redirect| Some(Err(redirect)))
             }
@@ -245,12 +246,40 @@ impl Handler for Router {
                 method::Head => {
                     req.method = method::Get;
                     self.handle_method(req, &path).unwrap_or(
-                        Err(IronError::new(NoRoute, status::NotFound))
+                        Err(IronError::new(RouterError::NotFound, status::NotFound))
                     )
                 }
-                _ => Err(IronError::new(NoRoute, status::NotFound))
+                _ => Err(IronError::new(RouterError::NotFound, status::NotFound))
             }
         )
+    }
+}
+
+/// A set of errors that can occur parsing HTTP streams.
+#[derive(Debug, PartialEq)]
+pub enum RouterError {
+    /// The error thrown by router if there is no matching method in existing route.
+    MethodNotAllowed,
+    /// The error thrown by router if there is no matching route.
+    NotFound,
+    /// The error thrown by router if a request was redirected by adding or removing a trailing slash.
+    TrailingSlash
+}
+
+
+impl fmt::Display for RouterError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(&self.description())
+    }
+}
+
+impl Error for RouterError {
+    fn description(&self) -> &str {
+        match *self {
+            RouterError::MethodNotAllowed => "Method Not Allowed",
+            RouterError::NotFound => "No matching route found.",
+            RouterError::TrailingSlash => "The request had a trailing slash."
+        }
     }
 }
 
@@ -267,21 +296,6 @@ impl fmt::Display for NoRoute {
 
 impl Error for NoRoute {
     fn description(&self) -> &str { "No Route" }
-}
-
-/// The error thrown by router if there is no matching route and method,
-/// it is always accompanied by a MethodNotAllowed response.
-#[derive(Debug, PartialEq, Eq)]
-pub struct MethodNotAllowed;
-
-impl fmt::Display for MethodNotAllowed {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("Method Not Allowed")
-    }
-}
-
-impl Error for MethodNotAllowed {
-    fn description(&self) -> &str { "Method Not Allowed" }
 }
 
 /// The error thrown by router if a request was redirected
@@ -302,6 +316,7 @@ impl Error for TrailingSlash {
 #[cfg(test)]
 mod test {
     use super::Router;
+    use super::RouterError;
     use iron::{headers, method, status, Request, Response};
 
     #[test]
@@ -345,7 +360,7 @@ mod test {
                 panic!();
             },
             Err(e) => {
-                assert_eq!("MethodNotAllowed", format!("{:?}", e.error));
+                assert_eq!(RouterError::MethodNotAllowed, e);
             }
         }
     }
@@ -383,7 +398,7 @@ mod test {
     }
 
     #[test]
-    fn test_no_route() {
+    fn test_not_found() {
         let mut router = Router::new();
         router.put("/put", |_: &mut Request| {
             Ok(Response::with((status::Ok, "")))
@@ -393,7 +408,7 @@ mod test {
                 panic!();
             },
             Err(e) => {
-                assert_eq!("NoRoute", format!("{:?}", e.error));
+                assert_eq!(RouterError::NotFound, e);
             }
         }
     }
