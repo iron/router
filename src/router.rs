@@ -144,20 +144,16 @@ impl Router {
 
     fn recognize(&self, method: &method::Method, path: &str)
                       -> Result<Match<&Arc<Handler>>, RouterError> {
-
-        if let Some(s) = self.inner.routers.recognize(path).ok() {
-            if let Some(h) = s.handler.get(method) {
-                return Ok(Match::new(h, s.params))
-            } else if let Some(s) = self.inner.wildcard.recognize(path).ok() {
-                return Ok(s)
-            } else {
-                return Err(RouterError::MethodNotAllowed)
-            }
-        } else if let Some(s) = self.inner.wildcard.recognize(path).ok() {
-            return Ok(s)
+        match self.inner.routers.recognize(path)
+            .map(|s|
+                match s.handler.get(method) {
+                    Some(h) => Ok(Match::new(h, s.params)),
+                    None => self.inner.wildcard.recognize(path).ok().map_or(Err(RouterError::MethodNotAllowed), |s| Ok(s))
+                }
+        ).map_err(|_| self.inner.wildcard.recognize(path).ok().map_or(Err(RouterError::NotFound), |s| Ok(s))) {
+            Ok(s) => s,
+            Err(e) => e
         }
-
-        Err(RouterError::NotFound)
     }
 
     fn handle_options(&self, path: &str) -> Response {
@@ -209,7 +205,7 @@ impl Router {
         }
 
         self.recognize(&req.method, &path).ok().and(
-            Some(IronError::new(RouterError::TrailingSlash,
+            Some(IronError::new(TrailingSlash,
                                 (status::MovedPermanently, Redirect(url))))
         )
     }
@@ -221,10 +217,10 @@ impl Router {
                 req.extensions.insert::<RouterInner>(self.inner.clone());
                 Some(matched.handler.handle(req))
             },
-            Err(e) => {
-                if e == RouterError::MethodNotAllowed {
-                    return Some(Err(IronError::new(e, status::MethodNotAllowed)))
-                }
+            Err(RouterError::MethodNotAllowed) => {
+                Some(Err(IronError::new(RouterError::MethodNotAllowed, status::MethodNotAllowed)))
+            },
+            Err(_) => {
                 self.redirect_slash(req).and_then(|redirect| Some(Err(redirect)))
             }
         }
@@ -261,9 +257,7 @@ pub enum RouterError {
     /// The error thrown by router if there is no matching method in existing route.
     MethodNotAllowed,
     /// The error thrown by router if there is no matching route.
-    NotFound,
-    /// The error thrown by router if a request was redirected by adding or removing a trailing slash.
-    TrailingSlash
+    NotFound
 }
 
 
@@ -277,8 +271,7 @@ impl Error for RouterError {
     fn description(&self) -> &str {
         match *self {
             RouterError::MethodNotAllowed => "Method Not Allowed",
-            RouterError::NotFound => "No matching route found.",
-            RouterError::TrailingSlash => "The request had a trailing slash."
+            RouterError::NotFound => "No matching route found."
         }
     }
 }
@@ -315,8 +308,7 @@ impl Error for TrailingSlash {
 
 #[cfg(test)]
 mod test {
-    use super::Router;
-    use super::RouterError;
+    use super::{Router, RouterError};
     use iron::{headers, method, status, Request, Response};
 
     #[test]
@@ -377,8 +369,12 @@ mod test {
         router.put("/post", |_: &mut Request| {
             Ok(Response::with((status::Ok, "")))
         }, "");
+        router.any("/get", |_: &mut Request| {
+            Ok(Response::with((status::Ok, "")))
+        }, "any");
 
         assert!(router.recognize(&method::Get, "/post").is_ok());
+        assert!(router.recognize(&method::Get, "/get").is_ok());
     }
 
     #[test]
