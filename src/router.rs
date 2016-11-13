@@ -182,7 +182,7 @@ impl Router {
     }
 
     // Tests for a match by adding or removing a trailing slash.
-    fn redirect_slash(&self, req : &Request) -> Option<IronError> {
+    fn redirect_slash(&self, req : &Request) -> Option<IronResult<Response>> {
         let mut url = req.url.clone();
         let mut path = url.path().join("/");
 
@@ -205,8 +205,8 @@ impl Router {
         }
 
         self.recognize(&req.method, &path).ok().and(
-            Some(IronError::new(TrailingSlash,
-                                (status::MovedPermanently, Redirect(url))))
+            Some(Err(IronError::new(RouterError::TrailingSlash,
+                                (status::MovedPermanently, Redirect(url)))))
         )
     }
 
@@ -221,7 +221,7 @@ impl Router {
                 Some(Err(IronError::new(RouterError::MethodNotAllowed, status::MethodNotAllowed)))
             },
             Err(_) => {
-                self.redirect_slash(req).and_then(|redirect| Some(Err(redirect)))
+                self.redirect_slash(req)
             }
         }
     }
@@ -257,7 +257,9 @@ pub enum RouterError {
     /// The error thrown by router if there is no matching method in existing route.
     MethodNotAllowed,
     /// The error thrown by router if there is no matching route.
-    NotFound
+    NotFound,
+    /// The error thrown by router if a request was redirected by adding or removing a trailing slash.
+    TrailingSlash
 }
 
 
@@ -271,7 +273,8 @@ impl Error for RouterError {
     fn description(&self) -> &str {
         match *self {
             RouterError::MethodNotAllowed => "Method Not Allowed",
-            RouterError::NotFound => "No matching route found."
+            RouterError::NotFound => "No matching route found.",
+            RouterError::TrailingSlash => "The request had a trailing slash."
         }
     }
 }
