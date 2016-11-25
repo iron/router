@@ -6,10 +6,14 @@
 extern crate iron;
 extern crate route_recognizer as recognizer;
 extern crate url;
+#[cfg(feature = "mount")]
+extern crate mount;
 
 pub use router::{Router, RouterError, NoRoute, TrailingSlash};
 pub use recognizer::Params;
 pub use url_for::url_for;
+#[cfg(feature = "mount")]
+pub use url_for::mounted_url_for;
 
 mod router;
 mod macros;
