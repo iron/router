@@ -4,8 +4,22 @@ rust:
   - stable
   - beta
 sudo: false
+
+# load travis-cargo
+before_script:
+  - |
+      pip install 'travis-cargo<0.2' --user &&
+      export PATH=$HOME/.local/bin:$PATH
+
+script:
+  - |
+      travis-cargo build -- --features mount &&
+      travis-cargo test -- --features mount &&
+      travis-cargo --only stable doc
+
 env:
   global:
-    secure: MjdqCPMV5iaByoY3m545Iw/S7UHbX5d3ZgU9H3c62Vo2WqJ12EWk4H0Z0HU+Ptu1+FriplfbnKKcfiE9zHam2yBs2XfhysWm/nOCk5eTetSpapYddWkwQaoEgxcan4kUyJiG0v4ZylorZea7d2wa9iKZKFQPChnvCI+Xd/9dlJs=
+    - TRAVIS_CARGO_NIGHTLY_FEATURE=""
+    - secure: MjdqCPMV5iaByoY3m545Iw/S7UHbX5d3ZgU9H3c62Vo2WqJ12EWk4H0Z0HU+Ptu1+FriplfbnKKcfiE9zHam2yBs2XfhysWm/nOCk5eTetSpapYddWkwQaoEgxcan4kUyJiG0v4ZylorZea7d2wa9iKZKFQPChnvCI+Xd/9dlJs=
 after_success: 'curl https://raw.githubusercontent.com/iron-bot/build-doc/master/build-doc.sh
   | sh '

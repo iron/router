@@ -13,3 +13,4 @@ keywords = ["iron", "web", "http", "routing", "router"]
 route-recognizer = "0.1"
 iron = "0.4"
 url = "1.1"
+mount = { version = "0.2", optional = true }
