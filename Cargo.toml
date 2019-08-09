@@ -1,5 +1,4 @@
 [package]
-
 name = "router"
 authors = ["Jonathan Reem <jonathan.reem@gmail.com>"]
 license = "MIT"
@@ -10,6 +9,6 @@ documentation = "http://ironframework.io/doc/router/index.html"
 keywords = ["iron", "web", "http", "routing", "router"]
 
 [dependencies]
-route-recognizer = "0.1"
+route-recognizer = "0.1.13"
 iron = { git = "https://github.com/iron/iron", branch = "master" }
 url = "1.1"
